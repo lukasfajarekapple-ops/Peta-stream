@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Liška</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Space+Grotesk:wght@400;500&display=swap');
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{ margin:0; height:100%; overflow:hidden; font-family:'Space Grotesk',sans-serif; background:#bfe3ef; }
+  #app{ position:fixed; inset:0; }
+  canvas{ display:block; }
+
+  #hud{
+    position:fixed; left:0; right:0; bottom:0; display:flex; flex-direction:column; align-items:center;
+    gap:6px; padding:16px 20px 20px; pointer-events:none; transition:opacity 0.8s ease;
+  }
+  #name{ font-family:'Baloo 2',sans-serif; font-weight:800; font-size:24px; color:#1a2b1a;
+    background:rgba(255,255,255,0.55); padding:2px 16px; border-radius:99px; }
+  #ageLine{ font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:#2a3a2a;
+    background:rgba(255,255,255,0.5); padding:2px 10px; border-radius:99px; }
+  #xpBar{ width:min(220px,55vw); height:6px; border-radius:99px; background:rgba(0,0,0,0.15); overflow:hidden; margin-top:2px; }
+  #xpFill{ height:100%; width:0%; background:linear-gradient(90deg,#4fd1c5,#ff8a5c); transition:width .2s; }
+
+  #gearBtn{
+    position:fixed; top:16px; right:16px; z-index:15; transition:opacity 0.8s ease;
+    width:38px; height:38px; border-radius:50%;
+    background:rgba(255,255,255,0.65); border:1px solid rgba(0,0,0,0.08);
+    color:#1a2b1a; font-size:18px; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+
+  #panel{
+    position:fixed; top:0; right:0; height:100%; width:min(340px,86vw);
+    background:rgba(250,250,246,0.97); backdrop-filter:blur(10px);
+    transform:translateX(105%); transition:transform .25s ease;
+    z-index:20; padding:24px 20px; overflow-y:auto; color:#1a2320;
+    border-left:1px solid rgba(0,0,0,0.08);
+  }
+  #panel.open{ transform:translateX(0); }
+  #panel h2{ font-family:'Baloo 2',sans-serif; font-size:20px; margin:0 0 14px; }
+  #panel h3{ font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#77806f; margin:20px 0 8px;}
+  #panel input[type=text]{
+    width:100%; padding:9px 12px; border-radius:10px; border:1px solid rgba(0,0,0,0.15);
+    background:rgba(0,0,0,0.03); color:#1a2320; font-size:14px; margin-bottom:4px;
+  }
+  #panel input[type=range]{ width:100%; }
+  .btn{
+    display:inline-block; padding:9px 14px; border-radius:10px; border:none;
+    background:rgba(0,0,0,0.07); color:#1a2320; font-size:13px; cursor:pointer; margin:4px 6px 4px 0;
+  }
+  .btn.primary{ background:#ff8a5c; color:#2a1408; font-weight:700; }
+  .btn.danger{ background:#ff4f5a22; color:#c23; }
+  .ach{ display:flex; align-items:center; gap:10px; font-size:13px; padding:8px 10px; border-radius:10px; background:rgba(0,0,0,0.03); margin-bottom:6px; }
+  .ach.locked{ opacity:0.35; }
+  .ach .ic{ font-size:18px; width:22px; text-align:center; }
+  #closeBtn{ position:absolute; top:18px; right:18px; color:#77806f; font-size:20px; cursor:pointer; }
+  #fileImport{ display:none; }
+
+  #startOverlay{
+    position:fixed; inset:0; z-index:25; background:linear-gradient(#bfe3ef,#eaf6e8);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:16px; text-align:center; padding:30px;
+  }
+  #startOverlay h1{ font-family:'Baloo 2',sans-serif; font-size:36px; margin:0; font-weight:800; color:#1a2b1a; }
+  #startOverlay p{ color:#3a4a3a; max-width:360px; line-height:1.5; margin:0; font-size:14px; }
+  #startBtn{
+    font-family:'Baloo 2',sans-serif; font-weight:700; font-size:17px;
+    padding:13px 34px; border-radius:99px; border:none;
+    background:#ff8a5c; color:#2a1408; cursor:pointer; box-shadow:0 8px 30px rgba(255,138,92,0.4);
+  }
+  #status{ font-size:12px; color:#5a6a5a; }
+
+  #toast{
+    position:fixed; top:22px; left:50%; transform:translateX(-50%) translateY(-140%);
+    background:rgba(30,30,26,0.92); color:#f4f1ea; border:1px solid rgba(255,255,255,0.12);
+    padding:12px 20px; border-radius:14px; font-size:14px; z-index:30;
+    transition:transform .4s ease; text-align:center; max-width:80vw;
+  }
+  #toast.show{ transform:translateX(-50%) translateY(0); }
+  #credit{ position:fixed; bottom:6px; right:8px; font-size:9px; color:rgba(20,30,20,0.45); pointer-events:none; }
+</style>
+</head>
+<body>
+
+<div id="startOverlay">
+  <h1>Liška 🦊</h1>
+  <p>Žije podle tvého hlasu a zvuků kolem. Roste reálně — dny, měsíce, roky. Povol mikrofon a pojďme ji probudit.</p>
+  <button id="startBtn">Probudit lišku</button>
+  <div id="status"></div>
+</div>
+
+<div id="app"></div>
+
+<div id="hud" style="display:none">
+  <div id="name">Liška</div>
+  <div id="ageLine">den 0 · mimino</div>
+  <div id="xpBar"><div id="xpFill"></div></div>
+</div>
+<div id="gearBtn" style="display:none">⚙</div>
+
+<div id="panel">
+  <span id="closeBtn">✕</span>
+  <h2>Nastavení</h2>
+  <h3>Jméno</h3>
+  <input type="text" id="nameInput" maxlength="16" placeholder="Liška">
+  <button class="btn primary" id="saveNameBtn">Uložit jméno</button>
+  <h3>Citlivost mikrofonu</h3>
+  <input type="range" id="sens" min="0.3" max="2.5" step="0.1" value="1">
+  <h3>Stav</h3>
+  <div id="statsBox" style="font-size:13px; color:#4a5a4a; line-height:1.7;"></div>
+  <h3>Úspěchy</h3>
+  <div id="achList"></div>
+  <h3>Deník</h3>
+  <div id="diaryList"></div>
+  <h3>Záloha</h3>
+  <button class="btn" id="exportBtn">Stáhnout zálohu</button>
+  <button class="btn" id="importBtn">Nahrát zálohu</button>
+  <input type="file" id="fileImport" accept="application/json">
+  <h3>Nebezpečná zóna</h3>
+  <button class="btn danger" id="resetBtn">Začít úplně od znova</button>
+</div>
+
+<div id="toast"></div>
+<div id="credit">Model: PixelMannen (CC0) · Rig/animace: tomkranis (CC BY 4.0) · glTF: AsoboStudio &amp; scurest (CC BY 4.0)</div>
+
+<script src="https://unpkg.com/three@0.121.1/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.121.1/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(function(){
+  const STORAGE_KEY = 'liska_state_v1';
+
+  // ================= PERSISTENT STATE =================
+  function freshState(){
+    return {
+      name:'Liška', createdAt:Date.now(), lastVisit:Date.now(),
+      totalActiveSeconds:0, totalOpenSeconds:0,
+      laughCount:0, screamCount:0, startleCount:0,
+      daysVisited:[], lateNightVisits:0, earlyBirdVisits:0,
+      unlocked:[], xp:0, visitorsSeen:0, seasonsSeen:[], holidayShown:{}
+    };
+  }
+  let S = null;
+  function load(){ try{ const r=localStorage.getItem(STORAGE_KEY); S = r?JSON.parse(r):freshState(); }catch(e){ S=freshState(); } }
+  function save(){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(S)); }catch(e){} }
+  load();
+
+  // ================= STAGES =================
+  const STAGES = [
+    { id:'egg',   name:'mimino',           minDays:0,   scale:0.62 },
+    { id:'young', name:'mládě',            minDays:7,   scale:0.8  },
+    { id:'teen',  name:'puberťák',         minDays:30,  scale:0.95 },
+    { id:'adult', name:'dospělá',          minDays:90,  scale:1.1  },
+    { id:'elder', name:'moudrá stařešina', minDays:365, scale:1.22 },
+  ];
+  function ageDays(){ return (Date.now()-S.createdAt)/86400000; }
+  function getStage(){ let s=STAGES[0]; STAGES.forEach(function(st){ if(ageDays()>=st.minDays) s=st; }); return s; }
+  function fmtDays(d){
+    if(d<1) return 'méně než den';
+    const days=Math.floor(d);
+    if(days<30) return days+' '+plural(days,'den','dny','dní');
+    if(days<365) return Math.floor(days/30)+' '+plural(Math.floor(days/30),'měsíc','měsíce','měsíců');
+    return Math.floor(days/365)+' '+plural(Math.floor(days/365),'rok','roky','let');
+  }
+  function plural(n,a,b,c){ if(n===1) return a; if(n>=2&&n<=4) return b; return c; }
+
+  // ================= ACHIEVEMENTS =================
+  const ACHIEVEMENTS = [
+    { id:'first_sound', label:'První zvuk', icon:'🔊', check:function(){ return S.totalActiveSeconds>2; } },
+    { id:'day1',    label:'Přežila první den', icon:'🌅', check:function(){ return ageDays()>=1; } },
+    { id:'week1',   label:'Týden života', icon:'📅', check:function(){ return ageDays()>=7; } },
+    { id:'month1',  label:'Měsíc života', icon:'🌙', check:function(){ return ageDays()>=30; } },
+    { id:'year1',   label:'Celý rok!', icon:'🎂', check:function(){ return ageDays()>=365; } },
+    { id:'laugh10', label:'Rozesmála 10×', icon:'😂', check:function(){ return S.laughCount>=10; } },
+    { id:'laugh100',label:'Král smíchu (100×)', icon:'🤣', check:function(){ return S.laughCount>=100; } },
+    { id:'scream5', label:'Přežila 5 řevů', icon:'😱', check:function(){ return S.screamCount>=5; } },
+    { id:'hours1',  label:'Hodina společně', icon:'⏱️', check:function(){ return S.totalActiveSeconds>=3600; } },
+    { id:'hours10', label:'10 hodin společně', icon:'🔥', check:function(){ return S.totalActiveSeconds>=36000; } },
+    { id:'hours100',label:'100 hodin — legenda', icon:'🏆', check:function(){ return S.totalActiveSeconds>=360000; } },
+    { id:'streak7', label:'7 dní v řadě', icon:'📈', check:function(){ return S.daysVisited.length>=7; } },
+    { id:'streak30',label:'30 dní v řadě', icon:'💎', check:function(){ return S.daysVisited.length>=30; } },
+    { id:'nightowl',label:'Noční sova', icon:'🦉', check:function(){ return S.lateNightVisits>=3; } },
+    { id:'earlybird',label:'Ranní ptáče', icon:'🐤', check:function(){ return S.earlyBirdVisits>=3; } },
+    { id:'visitor10',label:'Potkala 10 návštěvníků', icon:'🦋', check:function(){ return (S.visitorsSeen||0)>=10; } },
+    { id:'allseasons',label:'Zažila všechna 4 roční období', icon:'🍂', check:function(){ return (S.seasonsSeen||[]).length>=4; } },
+  ];
+  // cosmetics rendered as attached 3D props on the fox
+  const COSMETICS = {
+    hours1:'collar', week1:'sparkle', hours10:'trail', month1:'bandana',
+    hours100:'crown', year1:'halo', laugh10:'hearts',
+  };
+  function unlockedIds(){ return S.unlocked.map(function(u){ return typeof u==='string'?u:u.id; }); }
+  function hasCosmetic(key){
+    const ids = unlockedIds();
+    for(const id in COSMETICS){ if(COSMETICS[id]===key && ids.indexOf(id)>=0) return true; }
+    return false;
+  }
+  function checkAchievements(){
+    const ids = unlockedIds();
+    ACHIEVEMENTS.forEach(function(a){
+      if(ids.indexOf(a.id)<0 && a.check()){
+        S.unlocked.push({id:a.id, date:Date.now()});
+        showToast('✨ Nový úspěch: '+a.label);
+      }
+    });
+  }
+
+  // ================= PERSONALITY =================
+  function getPersonality(){
+    const total = S.laughCount + S.screamCount*0.5 + Math.max(1,S.totalActiveSeconds/60);
+    if(total<15) return {label:'ještě se poznáváme'};
+    const laughRatio=S.laughCount/total, screamRatio=(S.screamCount*0.5)/total;
+    if(laughRatio>0.35) return {label:'hravá'};
+    if(screamRatio>0.3) return {label:'divoká'};
+    return {label:'klidná'};
+  }
+
+  // ================= SEASON / TIME / HOLIDAY =================
+  function getSeason(){ const m=new Date().getMonth()+1; if(m===12||m<=2) return 'zima'; if(m<=5) return 'jaro'; if(m<=8) return 'leto'; return 'podzim'; }
+  function getTimeOfDay(){ const h=new Date().getHours(); if(h>=5&&h<8) return 'usvit'; if(h>=8&&h<18) return 'den'; if(h>=18&&h<21) return 'soumrak'; return 'noc'; }
+  const SEASON_THEME = {
+    zima:  { ground:0xdfeaf0, fog:0xdcebf5, particle:'snow' },
+    jaro:  { ground:0x9fd18a, fog:0xdff0e0, particle:'petal' },
+    leto:  { ground:0x8fbf7a, fog:0xeaf6e8, particle:'firefly' },
+    podzim:{ ground:0xc9a15a, fog:0xf0e2c0, particle:'leaf' },
+  };
+  function getHoliday(){
+    const d=new Date(), day=d.getDate(), m=d.getMonth()+1;
+    if(m===12&&day>=24&&day<=26) return {id:'vanoce', label:'Vánoce 🎄', particle:'snow'};
+    if((m===12&&day===31)||(m===1&&day===1)) return {id:'silvestr', label:'Silvestr 🎆', particle:'firework'};
+    if(m===10&&day===31) return {id:'halloween', label:'Halloween 🎃', particle:'bat'};
+    if(m===4&&day>=1&&day<=7) return {id:'velikonoce', label:'Jarní svátky 🐣', particle:'egg'};
+    return null;
+  }
+  function trackSeasonSeen(){ const s=getSeason(); S.seasonsSeen=S.seasonsSeen||[]; if(S.seasonsSeen.indexOf(s)<0) S.seasonsSeen.push(s); }
+  function checkHolidayToast(){
+    const h=getHoliday(); if(!h) return;
+    const key=new Date().toISOString().slice(0,10);
+    S.holidayShown=S.holidayShown||{};
+    if(S.holidayShown[h.id]!==key){ S.holidayShown[h.id]=key; showToast(h.label+' — dnes je výjimečný den!'); }
+  }
+
+  // ================= TOAST =================
+  let toastTimer;
+  function showToast(msg){
+    const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer=setTimeout(function(){ t.classList.remove('show'); }, 3200);
+  }
+
+  // ================= VISIT TRACKING =================
+  function trackVisit(){
+    const now=new Date(), key=now.toISOString().slice(0,10);
+    if(S.daysVisited.indexOf(key)<0) S.daysVisited.push(key);
+    const h=now.getHours();
+    if(h>=0&&h<5) S.lateNightVisits++;
+    if(h>=5&&h<8) S.earlyBirdVisits++;
+    S.lastVisit=Date.now();
+  }
+
+  // ================= THREE.JS SCENE =================
+  const app = document.getElementById('app');
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0xbfe3ef);
+  scene.fog = new THREE.Fog(0xeaf6e8, 8, 26);
+
+  const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(0, 2.4, 6.5);
+  camera.lookAt(0,0.6,0);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.shadowMap.enabled = true;
+  app.appendChild(renderer.domElement);
+  addEventListener('resize', function(){
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x4a5a3a, 1.1); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+  sun.position.set(4,6,3); sun.castShadow=true;
+  sun.shadow.mapSize.set(1024,1024);
+  sun.shadow.camera.left=-8; sun.shadow.camera.right=8; sun.shadow.camera.top=8; sun.shadow.camera.bottom=-8;
+  scene.add(sun);
+
+  const groundMat = new THREE.MeshStandardMaterial({ color:0x8fbf7a, roughness:1 });
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(14,48), groundMat);
+  ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+
+  const path = new THREE.Mesh(new THREE.RingGeometry(3.6,4.2,48),
+    new THREE.MeshBasicMaterial({ color:0xdfe8c8, transparent:true, opacity:0.4, side:THREE.DoubleSide }));
+  path.rotation.x=-Math.PI/2; path.position.y=0.01; scene.add(path);
+
+  // scattered rocks/bushes for scenery
+  const decor = new THREE.Group(); scene.add(decor);
+  for(let i=0;i<7;i++){
+    const isRock = Math.random()<0.5;
+    const geo = isRock ? new THREE.DodecahedronGeometry(0.18+Math.random()*0.12) : new THREE.SphereGeometry(0.22+Math.random()*0.15,8,8);
+    const mat = new THREE.MeshStandardMaterial({ color: isRock? 0x9a9a90 : 0x4f7a3f, roughness:1 });
+    const m = new THREE.Mesh(geo,mat);
+    const ang = Math.random()*Math.PI*2, rad = 4.5+Math.random()*4;
+    m.position.set(Math.cos(ang)*rad, isRock?0.1:0.2, Math.sin(ang)*rad);
+    m.castShadow=true; m.receiveShadow=true;
+    decor.add(m);
+  }
+
+  // ---------- DEN / PELECH ----------
+  const den = new THREE.Group();
+  den.position.set(-3.2, 0, -1.4);
+  const denBase = new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.85,0.35,20),
+    new THREE.MeshStandardMaterial({ color:0x8a6a44, roughness:1 }));
+  denBase.position.y=0.17; denBase.castShadow=true; denBase.receiveShadow=true;
+  const denRim = new THREE.Mesh(new THREE.TorusGeometry(0.75,0.12,10,20),
+    new THREE.MeshStandardMaterial({ color:0x6f5233, roughness:1 }));
+  denRim.rotation.x=Math.PI/2; denRim.position.y=0.34;
+  const denPillow = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,10),
+    new THREE.MeshStandardMaterial({ color:0xe7c9a0, roughness:0.9 }));
+  denPillow.scale.y=0.35; denPillow.position.y=0.36;
+  den.add(denBase, denRim, denPillow);
+  scene.add(den);
+  const denSpot = new THREE.Vector3(den.position.x+0.9, 0, den.position.z+0.3);
+
+  // ---------- MOUSE HOLE & BIRD PERCH ----------
+  const mouseHole = new THREE.Mesh(new THREE.CircleGeometry(0.28,20),
+    new THREE.MeshBasicMaterial({ color:0x2a1c10 }));
+  mouseHole.rotation.x=-Math.PI/2; mouseHole.position.set(3.6,0.005,1.6);
+  scene.add(mouseHole);
+
+  const perch = new THREE.Group(); perch.position.set(2.8,0,-2.2);
+  const perchPole = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.06,1.3,8),
+    new THREE.MeshStandardMaterial({ color:0x5a4530 }));
+  perchPole.position.y=0.65; perchPole.castShadow=true;
+  const perchNest = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.08,8,16),
+    new THREE.MeshStandardMaterial({ color:0x6f5233 }));
+  perchNest.rotation.x=Math.PI/2; perchNest.position.y=1.3;
+  perch.add(perchPole, perchNest);
+  scene.add(perch);
+
+  // ---------- AMBIENT SEASON PARTICLES ----------
+  const ambientGroup = new THREE.Group(); scene.add(ambientGroup);
+  let ambientParticles = [];
+  function ambientSpriteTexture(type){
+    const c=document.createElement('canvas'); c.width=64;c.height=64;
+    const cx=c.getContext('2d'); cx.font='44px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle';
+    const glyph = {snow:'❄️',petal:'🌸',leaf:'🍁',firefly:'✨',bat:'🦇',egg:'🥚',firework:'🎆'}[type]||'✨';
+    cx.fillText(glyph,32,34);
+    return new THREE.CanvasTexture(c);
+  }
+  const ambientTexCache = {};
+  function getAmbientTex(type){ if(!ambientTexCache[type]) ambientTexCache[type]=ambientSpriteTexture(type); return ambientTexCache[type]; }
+  let ambientSpawnTimer=0;
+  function updateAmbient(dt,t){
+    const theme = SEASON_THEME[getSeason()];
+    const holiday = getHoliday();
+    const type = (holiday&&holiday.particle) ? holiday.particle : theme.particle;
+    ambientSpawnTimer += dt;
+    const rate = type==='firefly' ? 0.5 : 0.25;
+    if(ambientSpawnTimer>rate){
+      ambientSpawnTimer=0;
+      const mat = new THREE.SpriteMaterial({ map:getAmbientTex(type), transparent:true });
+      const spr = new THREE.Sprite(mat); spr.scale.set(0.35,0.35,1);
+      spr.position.set((Math.random()-0.5)*12, type==='firefly'?1+Math.random():5, (Math.random()-0.5)*8);
+      spr.userData = { type, vy: type==='firefly'? (Math.random()-0.5)*0.3 : -(0.6+Math.random()*0.5), phase:Math.random()*Math.PI*2, life:1 };
+      ambientGroup.add(spr); ambientParticles.push(spr);
+    }
+    ambientParticles.forEach(function(p){
+      const u=p.userData;
+      if(u.type==='firefly'){ p.position.x+=Math.sin(t+u.phase)*0.01; p.position.y+=u.vy*dt; u.life-=dt*0.1; }
+      else { p.position.x+=Math.sin(t+u.phase)*0.015; p.position.y+=u.vy*dt; u.life-=dt*0.09; }
+      p.material.opacity = Math.max(0,Math.min(1,u.life));
+      if(p.position.y<0 || u.life<=0) u.life=0;
+    });
+    ambientParticles = ambientParticles.filter(function(p){ if(p.userData.life<=0){ ambientGroup.remove(p); return false;} return true; });
+  }
+
+  // ---------- DAY/NIGHT LIGHT + SKY ----------
+  let moonSun = null;
+  function updateSkyAndLight(){
+    const tod = getTimeOfDay();
+    const season = getSeason();
+    const theme = SEASON_THEME[season];
+    let skyColor, fogColor, sunColor, sunIntensity, hemiIntensity;
+    if(tod==='den'){ skyColor=0x8fc7e0; fogColor=theme.fog; sunColor=0xffffff; sunIntensity=1.6; hemiIntensity=1.1; }
+    else if(tod==='usvit'||tod==='soumrak'){ skyColor=0xd99a7a; fogColor=0xe8c3a8; sunColor=0xffb27a; sunIntensity=1.1; hemiIntensity=0.8; }
+    else { skyColor=0x1c2a4a; fogColor=0x25355a; sunColor=0x8fa3d1; sunIntensity=0.35; hemiIntensity=0.4; }
+    scene.background = new THREE.Color(skyColor);
+    scene.fog.color = new THREE.Color(fogColor);
+    sun.color = new THREE.Color(sunColor); sun.intensity = sunIntensity;
+    hemi.intensity = hemiIntensity;
+    groundMat.color = new THREE.Color(theme.ground);
+
+    if(moonSun){ scene.remove(moonSun); moonSun=null; }
+    if(tod==='noc'){
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.4,16,16), new THREE.MeshBasicMaterial({ color:0xfdf6e3 }));
+      m.position.set(-5,6,-8); scene.add(m); moonSun=m;
+    } else if(tod==='den'){
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.5,16,16), new THREE.MeshBasicMaterial({ color:0xffe08a }));
+      m.position.set(6,7,-8); scene.add(m); moonSun=m;
+    }
+  }
+
+  // ---------- CREATURES (bird / mouse as ink sprites) ----------
+  function makeIconSprite(drawFn, size){
+    const c=document.createElement('canvas'); c.width=128;c.height=128;
+    const cx=c.getContext('2d'); drawFn(cx);
+    const mat=new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true });
+    const spr=new THREE.Sprite(mat); spr.scale.set(size,size,1); return spr;
+  }
+  function drawBirdIcon(cx){
+    cx.strokeStyle='#1a1a1a'; cx.lineWidth=7; cx.lineCap='round'; cx.lineJoin='round';
+    cx.beginPath(); cx.moveTo(20,72); cx.quadraticCurveTo(64,26,108,72); cx.stroke();
+    cx.beginPath(); cx.moveTo(64,62); cx.quadraticCurveTo(82,46,100,56); cx.stroke();
+  }
+  function drawMouseIcon(cx){
+    cx.strokeStyle='#1a1a1a'; cx.lineWidth=7; cx.lineCap='round'; cx.lineJoin='round';
+    cx.beginPath(); cx.ellipse(60,74,38,22,0,0,Math.PI*2); cx.stroke();
+    cx.beginPath(); cx.arc(24,60,11,0,Math.PI*2); cx.stroke();
+    cx.beginPath(); cx.moveTo(98,74); cx.quadraticCurveTo(120,60,124,82); cx.stroke();
+  }
+  let creature=null, creatureType=null, creatureTimer=0, nextCreatureIn=4+Math.random()*4;
+  function spawnCreature(){
+    creatureType = Math.random()<0.5 ? 'bird':'mouse';
+    const spr = makeIconSprite(creatureType==='bird'?drawBirdIcon:drawMouseIcon, creatureType==='bird'?0.7:0.6);
+    if(creatureType==='bird'){ spr.position.copy(perch.position).add(new THREE.Vector3(0,1.5,0)); spr.userData={ home:perch.position.clone().add(new THREE.Vector3(0,1.5,0)), phase:0, mode:'perched', timer:1+Math.random()*2 }; }
+    else { spr.position.copy(mouseHole.position).add(new THREE.Vector3(0,0.25,0)); spr.userData={ home:mouseHole.position.clone().add(new THREE.Vector3(0,0.25,0)), phase:0, mode:'out', vx:(Math.random()<0.5?1:-1)*0.9, dodgeTimer:0 }; }
+    scene.add(spr); creature=spr;
+  }
+  function updateCreature(dt,t){
+    creatureTimer+=dt;
+    if(!creature && creatureTimer>nextCreatureIn){ creatureTimer=0; nextCreatureIn=6+Math.random()*6; spawnCreature(); S.visitorsSeen=(S.visitorsSeen||0)+0; }
+    if(!creature) return;
+    const u=creature.userData; u.phase+=dt*6;
+    if(creatureType==='bird'){
+      creature.position.y = u.home.y + Math.sin(u.phase*0.5)*0.08;
+      if(u.mode==='perched'){
+        u.timer-=dt;
+        if(u.timer<=0 && Math.random()<0.3){ u.mode='fly'; u.vx=(Math.random()<0.5?1:-1)*1.4; }
+      } else {
+        creature.position.x += u.vx*dt;
+        if(Math.abs(creature.position.x-u.home.x)>3.5){ u.mode='perched'; u.timer=2+Math.random()*3; creature.position.copy(u.home); }
+      }
+    } else {
+      u.dodgeTimer-=dt;
+      if(u.dodgeTimer<=0 && Math.random()<0.02){ u.vx*=-1; u.dodgeTimer=1+Math.random(); }
+      creature.position.x += u.vx*dt;
+      if(Math.abs(creature.position.x-u.home.x)>3.2){ u.vx*=-1; u.dodgeTimer=0.6; }
+    }
+  }
+  function removeCreatureCaught(){
+    if(!creature) return;
+    spawnPoof(creature.position.clone());
+    scene.remove(creature); creature=null;
+  }
+  let poofs=[];
+  function spawnPoof(pos){
+    for(let i=0;i<6;i++){
+      const s = makeIconSprite(function(cx){ cx.strokeStyle='#1a1a1a'; cx.lineWidth=7; cx.beginPath(); cx.arc(64,64,26,0,Math.PI*2); cx.stroke(); }, 0.32);
+      s.position.copy(pos);
+      s.userData={ vx:(Math.random()-0.5)*1.6, vy:Math.random()*1.4+0.4, life:1 };
+      scene.add(s); poofs.push(s);
+    }
+  }
+  function updatePoofs(dt){
+    poofs.forEach(function(p){ p.position.x+=p.userData.vx*dt; p.position.y+=p.userData.vy*dt; p.userData.vy-=dt*1.5; p.userData.life-=dt*1.4; p.material.opacity=Math.max(0,p.userData.life); });
+    poofs = poofs.filter(function(p){ if(p.userData.life<=0){ scene.remove(p); return false;} return true; });
+  }
+
+  // ---------- RANDOM VISITORS (sky cameo) ----------
+  let visitor=null, visitorTimer=0, nextVisitorIn=60+Math.random()*60;
+  function updateVisitor(dt,t){
+    visitorTimer+=dt;
+    if(!visitor && visitorTimer>nextVisitorIn){
+      visitorTimer=0; nextVisitorIn=90+Math.random()*90;
+      const night = getTimeOfDay()==='noc';
+      const pool = night ? ['👻','🛸'] : (getSeason()==='zima'?['🦉']:getSeason()==='podzim'?['🍂']:['🦋']);
+      const glyph = pool[Math.floor(Math.random()*pool.length)];
+      const c=document.createElement('canvas'); c.width=96;c.height=96;
+      const cx=c.getContext('2d'); cx.font='60px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle'; cx.fillText(glyph,48,52);
+      const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map:new THREE.CanvasTexture(c), transparent:true }));
+      spr.scale.set(0.6,0.6,1);
+      const fromLeft = Math.random()<0.5;
+      spr.position.set(fromLeft?-7:7, 2.2+Math.random()*1, -3+Math.random()*4);
+      spr.userData={ vx:(fromLeft?1:-1)*0.6 };
+      scene.add(spr); visitor=spr;
+      S.visitorsSeen = (S.visitorsSeen||0)+1;
+    }
+    if(visitor){
+      visitor.position.x += visitor.userData.vx*dt;
+      visitor.position.y += Math.sin(t*2)*0.003;
+      if(Math.abs(visitor.position.x)>8){ scene.remove(visitor); visitor=null; }
+    }
+  }
+
+  // ---------- COSMETIC PROPS ON FOX ----------
+  const propGroup = new THREE.Group(); scene.add(propGroup);
+  let trailTimer=0, heartTimer=0;
+  function updateFoxProps(dt,t){
+    if(!fox) return;
+    const headPos = new THREE.Vector3(); fox.getWorldPosition(headPos);
+    const stageScale = getStage().scale;
+    headPos.y += 1.05*stageScale;
+
+    if(hasCosmetic('crown') || hasCosmetic('halo')){
+      // simple floating ring/gem above head, recreated each call is wasteful; use persistent object
+    }
+    if(hasCosmetic('trail') && (foxState.mode==='run'||foxState.mode==='chase')){
+      trailTimer -= dt;
+      if(trailTimer<=0){
+        trailTimer = 0.08;
+        const s = makeIconSprite(function(cx){ cx.fillStyle='rgba(255,255,255,0.9)'; cx.beginPath(); cx.arc(64,64,10,0,Math.PI*2); cx.fill(); }, 0.15);
+        const p = new THREE.Vector3(); fox.getWorldPosition(p); p.y+=0.2;
+        s.position.copy(p); s.userData={ vx:0, vy:0.2, life:1 };
+        scene.add(s); poofs.push(s);
+      }
+    }
+    if(hasCosmetic('hearts') && foxState.mood==='laughing'){
+      heartTimer -= dt;
+      if(heartTimer<=0){
+        heartTimer = 0.6;
+        const s = makeIconSprite(function(cx){ cx.font='54px sans-serif'; cx.textAlign='center'; cx.textBaseline='middle'; cx.fillText('💗',64,64); }, 0.4);
+        s.position.copy(headPos).add(new THREE.Vector3((Math.random()-0.5)*0.4,0.3,0));
+        s.userData={ vx:0, vy:0.5, life:1 };
+        scene.add(s); poofs.push(s);
+      }
+    }
+  }
+  // persistent head props: collar, bandana, crown, halo
+  let collarMesh=null, bandanaMesh=null, crownMesh=null, haloMesh=null;
+  function ensurePersistentProps(){
+    if(hasCosmetic('collar') && !collarMesh){
+      collarMesh = new THREE.Mesh(new THREE.TorusGeometry(0.18,0.035,8,20), new THREE.MeshStandardMaterial({ color:0x4fb0d1 }));
+      collarMesh.rotation.x=Math.PI/2; scene.add(collarMesh);
+    }
+    if(hasCosmetic('bandana') && !bandanaMesh){
+      bandanaMesh = new THREE.Mesh(new THREE.ConeGeometry(0.16,0.12,4), new THREE.MeshStandardMaterial({ color:0xff6b81 }));
+      scene.add(bandanaMesh);
+    }
+    if(hasCosmetic('crown') && !crownMesh){
+      crownMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.16,0.1,8,1,true), new THREE.MeshStandardMaterial({ color:0xffd166, side:THREE.DoubleSide }));
+      scene.add(crownMesh);
+    }
+    if(hasCosmetic('halo') && !haloMesh){
+      haloMesh = new THREE.Mesh(new THREE.TorusGeometry(0.22,0.02,8,24), new THREE.MeshBasicMaterial({ color:0xfff0c8 }));
+      haloMesh.rotation.x=Math.PI/2; scene.add(haloMesh);
+    }
+  }
+  function positionPersistentProps(){
+    if(!fox) return;
+    const p = new THREE.Vector3(); fox.getWorldPosition(p);
+    const s = getStage().scale;
+    if(collarMesh) collarMesh.position.set(p.x + 0.55*s*foxFacingSign(), 0.55*s, p.z);
+    if(bandanaMesh) bandanaMesh.position.set(p.x + 0.55*s*foxFacingSign(), 0.6*s, p.z);
+    if(crownMesh) crownMesh.position.set(p.x + 0.62*s*foxFacingSign(), 1.02*s, p.z);
+    if(haloMesh) haloMesh.position.set(p.x + 0.62*s*foxFacingSign(), 1.15*s, p.z);
+  }
+  function foxFacingSign(){ return fox && Math.cos(fox.rotation.y - FORWARD_OFFSET) < 0 ? -1 : 1; }
+
+  // ================= AUDIO / VOICE MOOD =================
+  let audioCtx, analyser, dataArray;
+  async function initAudio(){
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true, noiseSuppression:true}});
+    const src = audioCtx.createMediaStreamSource(stream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize=2048; analyser.smoothingTimeConstant=0.4;
+    dataArray = new Uint8Array(analyser.fftSize);
+    src.connect(analyser);
+  }
+  function getVolume(){
+    analyser.getByteTimeDomainData(dataArray);
+    let sum=0;
+    for(let i=0;i<dataArray.length;i++){ const v=(dataArray[i]-128)/128; sum+=v*v; }
+    return Math.sqrt(sum/dataArray.length);
+  }
+  let mood='sleepy', smoothVol=0, volHistory=[], silenceTimer=0, lastLoud=0, holdTimer=0;
+  let lastSaveTime=performance.now(), lastAchCheck=0;
+  function analyzeVoice(dt){
+    const sens = parseFloat(document.getElementById('sens').value);
+    const rawVol = getVolume()*sens*6;
+    smoothVol += (rawVol-smoothVol)*0.25;
+    volHistory.push(smoothVol); if(volHistory.length>40) volHistory.shift();
+    let mean=volHistory.reduce(function(a,b){return a+b;},0)/volHistory.length;
+    let variance=volHistory.reduce(function(a,b){return a+(b-mean)*(b-mean);},0)/volHistory.length;
+    const isLoud=smoothVol>0.55, isTalking=smoothVol>0.12, isVeryLoud=smoothVol>0.9;
+
+    if(isTalking){ S.totalActiveSeconds+=dt; silenceTimer=0; } else { silenceTimer+=dt; }
+    S.totalOpenSeconds+=dt; S.xp += (isTalking?dt*1.2:0);
+
+    const suddenSpike = smoothVol-(volHistory[volHistory.length-5]!==undefined?volHistory[volHistory.length-5]:smoothVol) > 0.5;
+    holdTimer -= dt*60;
+
+    if(isVeryLoud && silenceTimer<0.05){
+      lastLoud+=dt;
+      if(lastLoud>0.5){ if(mood!=='scream') S.screamCount++; mood='scream'; }
+      else if(suddenSpike){ if(mood!=='startled') S.startleCount++; mood='startled'; }
+      else mood='excited';
+    } else {
+      lastLoud=Math.max(0,lastLoud-dt);
+      if(suddenSpike && smoothVol>0.4){ if(mood!=='startled') S.startleCount++; mood='startled'; }
+      else if(variance>0.035 && mean>0.15 && isTalking){ if(mood!=='laughing') S.laughCount++; mood='laughing'; }
+      else if(isLoud){ mood='excited'; }
+      else if(silenceTimer>4.5){ mood='sleepy'; }
+      else if(isTalking){ mood='calm'; }
+    }
+
+    document.getElementById('xpFill').style.width = Math.min(100,(S.xp%100))+'%';
+    const now=performance.now();
+    if(now-lastAchCheck>1000){ checkAchievements(); lastAchCheck=now; }
+    if(now-lastSaveTime>4000){ save(); lastSaveTime=now; renderStatsBox(); }
+  }
+
+  // ================= FOX MODEL =================
+  const FOX_URL = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb';
+  let fox, mixer, actions={}, activeAction, activeName='';
+  const FORWARD_OFFSET = Math.PI;
+  const foxState = { facing:1, mode:'idle', modeTimer:1, mood:'sleepy' };
+  const statusEl = document.getElementById('status');
+
+  new THREE.GLTFLoader().load(FOX_URL, function(gltf){
+    fox = gltf.scene;
+    fox.traverse(function(o){ if(o.isMesh){ o.castShadow=true; } });
+    const box = new THREE.Box3().setFromObject(fox);
+    const sizeVec = new THREE.Vector3(); box.getSize(sizeVec);
+    fox._baseScale = 1.4/(sizeVec.y||1);
+    fox.scale.setScalar(fox._baseScale * getStage().scale);
+    scene.add(fox);
+
+    mixer = new THREE.AnimationMixer(fox);
+    gltf.animations.forEach(function(clip){ actions[clip.name]=mixer.clipAction(clip); });
+    function findClip(want){ return actions[want] || actions[Object.keys(actions).find(function(k){ return k.toLowerCase()===want.toLowerCase(); })]; }
+    actions.Survey=findClip('Survey'); actions.Walk=findClip('Walk'); actions.Run=findClip('Run');
+    playAction('Survey');
+    document.getElementById('startBtn').disabled=false;
+    statusEl.textContent='';
+  }, function(xhr){
+    if(xhr.total) statusEl.textContent = 'načítám lišku… '+Math.round(xhr.loaded/xhr.total*100)+'%';
+  }, function(err){
+    statusEl.textContent = 'Model se nepodařilo načíst — zkontroluj internet.'; console.error(err);
+  });
+
+  function playAction(name, fade){
+    fade = fade===undefined?0.3:fade;
+    const next = actions[name];
+    if(!next || activeName===name) return;
+    if(activeAction) activeAction.fadeOut(fade);
+    next.reset().fadeIn(fade).play();
+    activeAction=next; activeName=name;
+  }
+
+  function updateFoxBehavior(dt,t){
+    if(!fox) return;
+    foxState.mood = mood;
+    const stageScale = getStage().scale;
+    fox.scale.setScalar(fox._baseScale * stageScale);
+
+    if(mood==='sleepy'){
+      foxState.mode='sleep';
+      const dx = denSpot.x-fox.position.x, dz = denSpot.z-fox.position.z;
+      const dist = Math.sqrt(dx*dx+dz*dz);
+      if(dist>0.15){
+        playAction('Walk'); if(mixer) mixer.timeScale=1;
+        fox.rotation.y = Math.atan2(dx,dz) + FORWARD_OFFSET;
+        fox.position.x += (dx/dist)*0.8*dt;
+        fox.position.z += (dz/dist)*0.8*dt;
+      } else {
+        playAction('Survey',0.6); if(mixer) mixer.timeScale=0.15;
+      }
+      return;
+    }
+    if(mixer) mixer.timeScale=1;
+
+    if((mood==='excited'||mood==='laughing') && creature){
+      const dx=creature.position.x-fox.position.x, dz=creature.position.z-fox.position.z;
+      const dist=Math.sqrt(dx*dx+dz*dz);
+      foxState.mode='chase';
+      fox.rotation.y = Math.atan2(dx,dz) + FORWARD_OFFSET;
+      if(dist<0.55){ removeCreatureCaught(); playAction('Survey'); }
+      else { playAction('Run'); fox.position.x += (dx/dist)*2.6*dt; fox.position.z += (dz/dist)*2.6*dt; }
+      return;
+    }
+
+    if(mood==='scream' || mood==='startled'){
+      foxState.mode='run';
+      const dx = denSpot.x-fox.position.x, dz = denSpot.z-fox.position.z;
+      const dist = Math.sqrt(dx*dx+dz*dz)||1;
+      playAction('Run');
+      fox.rotation.y = Math.atan2(dx,dz) + FORWARD_OFFSET;
+      fox.position.x += (dx/dist)*3.2*dt;
+      fox.position.z += (dz/dist)*3.2*dt;
+      return;
+    }
+
+    // idle wander (calm) or happy trot (excited without creature)
+    foxState.modeTimer -= dt;
+    if(foxState.modeTimer<=0){
+      foxState.modeTimer = 1.5+Math.random()*2.5;
+      foxState.mode = Math.random()<0.65 ? 'walk' : 'idle';
+      foxState.facing = Math.random()<0.5?-1:1;
+    }
+    if(foxState.mode==='walk'){
+      playAction(mood==='excited' ? 'Run' : 'Walk');
+      fox.rotation.y = (foxState.facing>0?0:Math.PI) + FORWARD_OFFSET;
+      fox.position.x += foxState.facing*(mood==='excited'?2.0:0.9)*dt;
+    } else {
+      playAction('Survey');
+    }
+    fox.position.x = THREE.MathUtils.clamp(fox.position.x,-5.5,5.5);
+    fox.position.z = THREE.MathUtils.clamp(fox.position.z,-3,3);
+
+    camera.position.x += (fox.position.x*0.4 - camera.position.x)*0.02;
+    camera.lookAt(fox.position.x*0.5, 0.7, 0);
+  }
+
+  // ================= UI WIRING =================
+  function renderHud(){
+    const stage=getStage();
+    document.getElementById('name').textContent = S.name;
+    document.getElementById('ageLine').textContent = fmtDays(ageDays())+' · '+stage.name;
+  }
+  function renderStatsBox(){
+    const box=document.getElementById('statsBox');
+    const p=getPersonality(), season=getSeason(), holiday=getHoliday();
+    box.innerHTML =
+      'Věk: '+fmtDays(ageDays())+'<br>'+
+      'Stádium: '+getStage().name+'<br>'+
+      'Osobnost: '+p.label+'<br>'+
+      'Roční období: '+season+(holiday?' · '+holiday.label:'')+'<br>'+
+      'Aktivní čas s tebou: '+Math.floor(S.totalActiveSeconds/3600)+' h '+Math.floor((S.totalActiveSeconds%3600)/60)+' min<br>'+
+      'Rozesmátí: '+S.laughCount+'× &nbsp; Leknutí: '+S.startleCount+'× &nbsp; Řev: '+S.screamCount+'×<br>'+
+      'Návštěvníci potkáni: '+(S.visitorsSeen||0)+'<br>'+
+      'Dní na návštěvě: '+S.daysVisited.length;
+  }
+  function renderAchievements(){
+    const list=document.getElementById('achList'); list.innerHTML='';
+    const ids=unlockedIds();
+    ACHIEVEMENTS.forEach(function(a){
+      const done=ids.indexOf(a.id)>=0;
+      const div=document.createElement('div');
+      div.className='ach'+(done?'':' locked');
+      div.innerHTML='<span class="ic">'+(done?a.icon:'🔒')+'</span><span>'+a.label+'</span>';
+      list.appendChild(div);
+    });
+  }
+  function renderDiary(){
+    const box=document.getElementById('diaryList');
+    const entries=S.unlocked.filter(function(u){return typeof u!=='string';}).slice().sort(function(a,b){return b.date-a.date;});
+    if(entries.length===0){ box.innerHTML='<div style="color:#77806f; font-size:13px;">Zatím žádné zápisy.</div>'; return; }
+    box.innerHTML = entries.map(function(e){
+      const a=ACHIEVEMENTS.find(function(x){return x.id===e.id;});
+      const d=new Date(e.date).toLocaleDateString('cs-CZ');
+      return '<div class="ach"><span class="ic">'+(a?a.icon:'⭐')+'</span><span>'+d+' — '+(a?a.label:e.id)+'</span></div>';
+    }).join('');
+  }
+
+  const panel = document.getElementById('panel');
+  document.getElementById('gearBtn').onclick = function(){
+    document.getElementById('nameInput').value=S.name;
+    renderStatsBox(); renderAchievements(); renderDiary();
+    panel.classList.add('open'); showUi();
+  };
+  document.getElementById('closeBtn').onclick = function(){ panel.classList.remove('open'); };
+  document.getElementById('saveNameBtn').onclick = function(){
+    const v=document.getElementById('nameInput').value.trim();
+    if(v){ S.name=v; save(); renderHud(); showToast('Jméno uloženo 💾'); }
+  };
+  document.getElementById('exportBtn').onclick = function(){
+    const blob=new Blob([JSON.stringify(S,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download='liska-zaloha-'+new Date().toISOString().slice(0,10)+'.json';
+    a.click(); URL.revokeObjectURL(url);
+  };
+  document.getElementById('importBtn').onclick = function(){ document.getElementById('fileImport').click(); };
+  document.getElementById('fileImport').onchange = function(e){
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=function(){
+      try{ S=Object.assign(freshState(), JSON.parse(reader.result)); save(); renderHud(); renderStatsBox(); renderAchievements(); renderDiary(); showToast('Záloha načtena ✅'); }
+      catch(err){ alert('Neplatný soubor zálohy.'); }
+    };
+    reader.readAsText(file);
+  };
+  document.getElementById('resetBtn').onclick = function(){
+    if(confirm('Opravdu chceš lišku smazat a začít úplně od začátku?')){
+      if(confirm('Fakt fakt? Přijdeš o celou historii.')){ S=freshState(); save(); location.reload(); }
+    }
+  };
+
+  // auto-hide UI for clean camera shots
+  let idleTimer=0;
+  function showUi(){
+    idleTimer=0;
+    document.getElementById('hud').style.opacity='1';
+    document.getElementById('gearBtn').style.opacity='1';
+  }
+  ['pointerdown','touchstart','mousemove'].forEach(function(evt){
+    document.addEventListener(evt, function(){ if(!panel.classList.contains('open')) showUi(); });
+  });
+  function updateIdleFade(dt){
+    idleTimer+=dt;
+    if(idleTimer>6 && !panel.classList.contains('open')){
+      document.getElementById('hud').style.opacity='0';
+      document.getElementById('gearBtn').style.opacity='0';
+    }
+  }
+
+  let lastPeriodic=0;
+  function periodicChecks(now){
+    if(now-lastPeriodic>5000){ lastPeriodic=now; trackSeasonSeen(); checkHolidayToast(); updateSkyAndLight(); ensurePersistentProps(); }
+  }
+
+  document.getElementById('startBtn').addEventListener('click', async function(){
+    try{
+      await initAudio();
+      trackVisit(); trackSeasonSeen(); checkAchievements(); checkHolidayToast(); ensurePersistentProps(); updateSkyAndLight();
+      save();
+      document.getElementById('startOverlay').style.display='none';
+      document.getElementById('hud').style.display='flex';
+      document.getElementById('gearBtn').style.display='flex';
+      requestAnimationFrame(loop);
+    }catch(e){ statusEl.textContent='Nepodařilo se získat přístup k mikrofonu: '+e.message; }
+  });
+
+  // ================= MAIN LOOP =================
+  const clock = new THREE.Clock();
+  function loop(now){
+    const dt = Math.min(0.05, clock.getDelta());
+    const t = clock.elapsedTime;
+    if(analyser) analyzeVoice(dt);
+    if(mixer) mixer.update(dt);
+    updateFoxBehavior(dt,t);
+    updateCreature(dt,t);
+    updateVisitor(dt,t);
+    updatePoofs(dt);
+    updateAmbient(dt,t);
+    updateFoxProps(dt,t);
+    positionPersistentProps();
+    updateIdleFade(dt);
+    periodicChecks(performance.now());
+    renderHud();
+    renderer.render(scene, camera);
+    requestAnimationFrame(loop);
+  }
+
+  // idle render before start (shows environment while waiting for mic permission)
+  (function preview(){
+    if(!analyser){ renderer.render(scene, camera); requestAnimationFrame(preview); }
+  })();
+})();
+</script>
+</body>
+</html>
